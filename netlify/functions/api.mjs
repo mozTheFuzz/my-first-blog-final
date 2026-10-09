@@ -2,8 +2,13 @@ import { json, error, matchPath } from "../lib/http.mjs";
 import { listPosts, getPost, updatePost } from "../lib/posts.mjs";
 import { validatePostFields } from "../lib/validate.mjs";
 import { listComments, addComment, validateCommentBody, getComment, deleteComment, deleteDenialReason } from "../lib/comments.mjs";
-import { findOrCreateMember, getMember } from "../lib/members.mjs";
-import { createToken, currentMemberId, sessionCookieHeader, clearCookieHeader } from "../lib/session.mjs";
+import { findOrCreateLineMember, getMember } from "../lib/members.mjs";
+import {
+  createToken, currentMemberId, sessionCookieHeader, clearCookieHeader,
+  createLoginState, verifyLoginState, readLoginStateCookie, loginStateCookieHeader, clearLoginStateCookieHeader,
+} from "../lib/session.mjs";
+import { lineConfig, callbackUrl, buildAuthorizeUrl, exchangeCode, verifyIdToken } from "../lib/line.mjs";
+import { randomBytes } from "node:crypto";
 
 export const config = { path: "/api/*" };
 
@@ -21,13 +26,43 @@ export default async function handler(req) {
     const post = await getPost(p.id);
     return post ? json(post) : error("not_found", 404);
   }
-  // ---- 會員 ----
-  if (method === "POST" && matchPath("/api/auth/login", pathname)) {
-    const body = await req.json().catch(() => null);
-    const result = await findOrCreateMember(body?.name);
-    if (!result) return error("invalid_name", 400);
-    const token = createToken(result.member.id);
-    return json({ member: result.member, created: result.created }, 200, { "set-cookie": sessionCookieHeader(req, token) });
+  // ---- 會員（LINE Login）----
+  if (method === "GET" && matchPath("/api/auth/line/start", pathname)) {
+    const { id } = lineConfig();
+    const state = randomBytes(16).toString("base64url");
+    const nonce = randomBytes(16).toString("base64url");
+    const url = buildAuthorizeUrl({ channelId: id, redirectUri: callbackUrl(req), state, nonce });
+    return new Response(null, {
+      status: 302,
+      headers: { location: url, "set-cookie": loginStateCookieHeader(req, createLoginState({ state, nonce })) },
+    });
+  }
+  if (method === "GET" && matchPath("/api/auth/line/callback", pathname)) {
+    const q = new URL(req.url).searchParams;
+    const redirectHome = (errorCode) =>
+      new Response(null, {
+        status: 302,
+        headers: { location: errorCode ? `/?login_error=${errorCode}` : "/", "set-cookie": clearLoginStateCookieHeader(req) },
+      });
+    if (q.get("error")) return redirectHome("line_denied");
+    const saved = verifyLoginState(readLoginStateCookie(req));
+    if (!saved || !q.get("state") || q.get("state") !== saved.state) return redirectHome("invalid_state");
+    const code = q.get("code");
+    if (!code) return redirectHome("missing_code");
+    try {
+      const { id, secret } = lineConfig();
+      const token = await exchangeCode({ code, redirectUri: callbackUrl(req), channelId: id, channelSecret: secret });
+      const profile = await verifyIdToken({ idToken: token.id_token, channelId: id, nonce: saved.nonce });
+      const result = await findOrCreateLineMember(profile);
+      if (!result) return redirectHome("invalid_profile");
+      const headers = new Headers({ location: "/" });
+      headers.append("set-cookie", sessionCookieHeader(req, createToken(result.member.id)));
+      headers.append("set-cookie", clearLoginStateCookieHeader(req));
+      return new Response(null, { status: 302, headers });
+    } catch (err) {
+      console.error("LINE login failed:", err.message);
+      return redirectHome("line_failed");
+    }
   }
   if (method === "POST" && matchPath("/api/auth/logout", pathname)) {
     return json({ ok: true }, 200, { "set-cookie": clearCookieHeader(req) });

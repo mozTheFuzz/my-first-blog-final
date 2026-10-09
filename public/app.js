@@ -27,7 +27,8 @@ async function loadMember() {
 
 function renderAuth() {
   if (currentMember) {
-    authArea.innerHTML = `<span class="muted">你好，<strong>${esc(currentMember.name)}</strong></span> <button id="logout-btn">登出</button>`;
+    const avatar = currentMember.picture ? `<img class="avatar" src="${esc(currentMember.picture)}" alt="" />` : "";
+    authArea.innerHTML = `${avatar}<span class="muted">你好，<strong>${esc(currentMember.name)}</strong></span> <button id="logout-btn">登出</button>`;
     document.getElementById("logout-btn").addEventListener("click", async () => {
       await api("/auth/logout", { method: "POST" });
       currentMember = null;
@@ -35,24 +36,24 @@ function renderAuth() {
       route();
     });
   } else {
-    authArea.innerHTML = `<form id="login-form" class="inline-form">
-      <input name="name" placeholder="輸入暱稱登入" required maxlength="30" />
-      <button type="submit" class="primary">登入</button>
-      <span id="login-error" class="error"></span>
-    </form>`;
-    const form = document.getElementById("login-form");
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      try {
-        const r = await api("/auth/login", { method: "POST", body: JSON.stringify({ name: new FormData(form).get("name") }) });
-        currentMember = r.member;
-        renderAuth();
-        route();
-      } catch (err) {
-        document.getElementById("login-error").textContent = `登入失敗：${err.message}`;
-      }
-    });
+    authArea.innerHTML = `<a class="btn line-login" href="/api/auth/line/start">用 LINE 登入</a>`;
   }
+}
+
+// LINE callback 失敗時會轉回 /?login_error=<code>
+function showLoginError() {
+  const code = new URLSearchParams(location.search).get("login_error");
+  if (!code) return;
+  const msgs = {
+    line_denied: "你取消了 LINE 授權。",
+    invalid_state: "登入狀態已失效，請重新登入。",
+    line_failed: "LINE 登入失敗，請稍後再試。",
+  };
+  const el = document.createElement("p");
+  el.className = "error banner";
+  el.textContent = msgs[code] || `登入失敗：${code}`;
+  app.before(el);
+  history.replaceState(null, "", location.pathname + location.hash);
 }
 
 async function renderList() {
@@ -186,4 +187,5 @@ function route() {
 }
 
 window.addEventListener("hashchange", route);
+showLoginError();
 loadMember().then(route);

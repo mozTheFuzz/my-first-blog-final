@@ -76,3 +76,15 @@
 ## 實作順序
 
 依使用者指定的任務 1 到 6 逐項進行，每項完成後說明修改內容與驗收方式，確認後才進行下一項。
+
+---
+
+## 變更：會員登入改為 LINE Login（2026-10-09）
+
+暱稱登入已移除，改為 LINE Login（OAuth 2.0 授權碼流程，後端處理）。
+
+- `GET /api/auth/line/start`：產生 state 與 nonce 存入 10 分鐘短效簽章 cookie（`line_login`，Path 限 `/api/auth/line`），轉址到 LINE authorize，scope `profile openid`。
+- `GET /api/auth/line/callback`：比對 state → 以 code 換 token（Channel secret 只在此使用）→ 以 LINE verify 端點驗證 id_token 並比對 nonce → 會員 id 為 `line:<sub>`，首次建立、之後更新名稱與頭像 → 設定既有 session cookie 並轉回首頁。失敗轉回 `/?login_error=<code>`。
+- 環境變數：`LINE_CHANNEL_ID`、`LINE_CHANNEL_SECRET`、`SESSION_SECRET`。本機放 `.env`，正式放 Netlify 環境變數。
+- Callback URL 由請求 origin 組成，本機為 `http://localhost:8888/api/auth/line/callback`，正式為 `https://<site>/api/auth/line/callback`，兩者都要登錄在 LINE Developers Console。
+- 既有暱稱會員與其留言保留不動；這些留言已無人能刪除。

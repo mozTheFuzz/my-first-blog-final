@@ -27,3 +27,7 @@ button.danger { color: var(--danger); }
 .inline-form { display: flex; gap: 6px; align-items: center; }
 .inline-form input { padding: 6px 8px; font: inherit; border: 1px solid var(--border); border-radius: 6px; }
 button.small { padding: 2px 8px; font-size: 0.85rem; margin-left: 8px; }
+.line-login { background: #06c755; color: #fff; border-color: #06c755; font-weight: 600; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.banner { max-width: 720px; margin: 16px auto 0; padding: 0 16px; }
+#auth-area { display: flex; align-items: center; gap: 8px; }

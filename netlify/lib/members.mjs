@@ -4,25 +4,31 @@ function store() {
   return getStore({ name: "members", consistency: "strong" });
 }
 
-// 暱稱正規化後當作 memberId：同一暱稱永遠對應同一會員
-export function normalizeName(name) {
-  if (typeof name !== "string") return null;
-  const trimmed = name.trim().replace(/\s+/g, " ");
-  if (trimmed.length < 1 || trimmed.length > 30) return null;
-  return { id: trimmed.toLowerCase(), name: trimmed };
+// LINE 使用者 id（id_token 的 sub）對應的會員 id：同一個 LINE 帳號永遠是同一位會員
+export function lineMemberId(sub) {
+  if (typeof sub !== "string" || !/^U[0-9a-f]{32}$/.test(sub)) return null;
+  return `line:${sub}`;
 }
 
 export async function getMember(id) {
   return store().get(id, { type: "json" });
 }
 
-// 首次登入建立，之後回傳既有會員
-export async function findOrCreateMember(name) {
-  const n = normalizeName(name);
-  if (!n) return null;
-  const existing = await getMember(n.id);
-  if (existing) return { member: existing, created: false };
-  const member = { id: n.id, name: n.name, createdAt: new Date().toISOString() };
-  await store().setJSON(n.id, member);
-  return { member, created: true };
+// 首次登入建立，之後回傳既有會員；每次登入更新顯示名稱與頭像
+export async function findOrCreateLineMember({ sub, name, picture }) {
+  const id = lineMemberId(sub);
+  if (!id) return null;
+  const s = store();
+  const existing = await s.get(id, { type: "json" });
+  const now = new Date().toISOString();
+  const member = {
+    id,
+    provider: "line",
+    name,
+    picture,
+    createdAt: existing?.createdAt || now,
+    lastLoginAt: now,
+  };
+  await s.setJSON(id, member);
+  return { member, created: !existing };
 }

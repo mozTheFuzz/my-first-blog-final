@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createToken, verifyToken } from "../netlify/lib/session.mjs";
-import { normalizeName } from "../netlify/lib/members.mjs";
+
 
 const key = "test-secret-key-1234567890";
 
@@ -20,9 +20,4 @@ test("竄改 payload 或簽章會失敗", () => {
 test("過期 token 失敗", () => {
   const t = createToken("alice", { key, now: 0 });
   assert.equal(verifyToken(t, { key }), null);
-});
-test("暱稱正規化：trim、合併空白、小寫 id", () => {
-  assert.deepEqual(normalizeName("  Moz   Chung "), { id: "moz chung", name: "Moz Chung" });
-  assert.equal(normalizeName(""), null);
-  assert.equal(normalizeName("x".repeat(31)), null);
 });
