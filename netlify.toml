@@ -1,0 +1,19 @@
+[build]
+  publish = "public"
+
+# 明確把 /api/* 強制導向 function，避免本機 dev server 在 403/404 時嘗試靜態檔替代路徑
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# 前端檔案不快取，避免更新後瀏覽器仍載入舊版
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"

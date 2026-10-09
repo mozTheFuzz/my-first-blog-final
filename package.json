@@ -1,0 +1,13 @@
+{
+  "name": "mocksite-blog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@netlify/blobs": "^11.1.4",
+    "netlify-cli": "^27.12.0"
+  }
+}
